@@ -1,0 +1,46 @@
+{
+  "name": "opencode-kimi-auth",
+  "version": "0.1.0",
+  "description": "OpenCode authentication plugin for Kimi models",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@openauthjs/openauth": "^0.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/romancircus/opencode-kimi-auth.git"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "opencode",
+    "kimi",
+    "auth",
+    "plugin",
+    "authentication"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
