@@ -1,19 +1,22 @@
 {
   "comment": "Example OpenCode configuration for using the Kimi authentication plugin",
-  "model": "kimi-k2.5",
+  "model": "kimi-for-coding",
   "provider": {
-    "kimi": {
-      "api": {
-        "url": "https://api.moonshot.cn/v1"
+    "kimi-for-coding": {
+      "npm": "@ai-sdk/anthropic",
+      "name": "Kimi for Coding",
+      "options": {
+        "baseURL": "https://api.kimi.com/coding/v1",
+        "apiKey": "oauth-managed"
+      },
+      "models": {
+        "kimi-for-coding": {
+          "name": "Kimi For Coding"
+        }
       }
     }
   },
   "plugin": [
     "opencode-kimi-auth"
-  ],
-  "auth": {
-    "kimi": {
-      "type": "oauth"
-    }
-  }
+  ]
 }
