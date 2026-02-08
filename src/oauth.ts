@@ -4,7 +4,9 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 
 // Constants
-const CLIENT_ID = '17e5f671-d194-4dfb-9706-5516cb48c098';
+// OAuth Client ID for Kimi API - this is a public identifier (not a secret)
+// For custom OAuth apps, override via KIMI_CLIENT_ID environment variable
+const CLIENT_ID = process.env.KIMI_CLIENT_ID || '17e5f671-d194-4dfb-9706-5516cb48c098';
 const DEVICE_AUTH_ENDPOINT = 'https://auth.kimi.com/api/oauth/device_authorization';
 const TOKEN_ENDPOINT = 'https://auth.kimi.com/api/oauth/token';
 const DEFAULT_POLL_INTERVAL = 5000; // 5 seconds

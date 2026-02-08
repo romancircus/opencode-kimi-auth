@@ -1,0 +1,19 @@
+{
+  "comment": "Example OpenCode configuration for using the Kimi authentication plugin",
+  "model": "kimi-k2.5",
+  "provider": {
+    "kimi": {
+      "api": {
+        "url": "https://api.moonshot.cn/v1"
+      }
+    }
+  },
+  "plugin": [
+    "opencode-kimi-auth"
+  ],
+  "auth": {
+    "kimi": {
+      "type": "oauth"
+    }
+  }
+}

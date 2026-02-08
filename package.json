@@ -1,7 +1,7 @@
 {
   "name": "opencode-kimi-auth",
-  "version": "0.1.0",
-  "description": "OpenCode authentication plugin for Kimi models",
+  "version": "0.1.1",
+  "description": "OpenCode authentication plugin for Kimi models - enables OAuth Device Authorization flow",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,17 +14,20 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "example-opencode.json"
   ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@openauthjs/openauth": "^0.3.0"
   },
   "devDependencies": {
+    "@opencode-ai/plugin": "^0.4.45",
     "@types/node": "^20.0.0",
     "typescript": "^5.4.0"
   },
@@ -32,15 +35,29 @@
     "type": "git",
     "url": "git+https://github.com/romancircus/opencode-kimi-auth.git"
   },
+  "bugs": {
+    "url": "https://github.com/romancircus/opencode-kimi-auth/issues"
+  },
+  "homepage": "https://github.com/romancircus/opencode-kimi-auth#readme",
   "license": "Apache-2.0",
   "keywords": [
     "opencode",
     "kimi",
     "auth",
     "plugin",
-    "authentication"
+    "authentication",
+    "oauth",
+    "moonshot",
+    "ai",
+    "mcp"
   ],
   "engines": {
     "node": ">=18.0.0"
+  },
+  "author": "Roman Circus Studio",
+  "contributors": [],
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/romancircus"
   }
 }
