@@ -1,0 +1,91 @@
+# MCP Big Bang Migration - Pre-commit Configuration
+# Prevents costly MCP anti-patterns and enforces architecture standards
+# See CLAUDE.md for full documentation
+
+repos:
+  # MCP Anti-Pattern Detection (Custom)
+  - repo: local
+    hooks:
+      # Rule 1: Block comfyui_client imports (use mcp_adapter or direct API)
+      - id: block-comfyui-client
+        name: Block comfyui_client imports
+        entry: python scripts/precommit_mcp_hooks.py block-comfyui-client
+        language: python
+        files: \.py$
+        pass_filenames: true
+
+      # Rule 2: Block requests/urllib in MCP server code (allowed in scripts/)
+      - id: block-direct-http-in-server
+        name: Block direct HTTP in MCP server code
+        entry: python scripts/precommit_mcp_hooks.py block-direct-http
+        language: python
+        files: ^(src|lib|mcp_server)/.*\.py$
+        pass_filenames: true
+
+      # Rule 3: Flag mcp_execute inside loops >10 iterations
+      - id: detect-mcp-in-loops
+        name: Detect MCP calls in loops
+        entry: python scripts/precommit_mcp_hooks.py detect-loops
+        language: python
+        files: \.py$
+        pass_filenames: true
+
+      # Rule 4: Enforce commit message conventions
+      - id: check-commit-message
+        name: Check commit message format
+        entry: python scripts/precommit_mcp_hooks.py check-commit
+        language: python
+        always_run: true
+        stages: [commit-msg]
+
+      # Rule 5: Enforce Linear task exists before committing
+      - id: enforce-linear-task
+        name: Enforce Linear task creation
+        entry: python scripts/precommit_linear_hooks.py enforce-task-exists
+        language: python
+        always_run: true
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # Rule 6: Check Linear reference in commit message
+      - id: check-linear-ref
+        name: Check Linear reference in commit
+        entry: python scripts/precommit_linear_hooks.py check-commit-msg
+        language: python
+        stages: [commit-msg]
+
+      # Rule 7: Verify AGENTS.md -> CLAUDE.md symlink
+      - id: check-agents-symlink
+        name: Verify AGENTS.md symlink
+        entry: python scripts/precommit_linear_hooks.py check-agents-symlink
+        language: python
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  # Standard Python linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Basic checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=10000']
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]
