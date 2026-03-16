@@ -1,0 +1,47 @@
+[tool.ruff]
+# MCP Big Bang Migration - Ruff Configuration
+# Custom rules to enforce MCP architecture standards
+
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Core rules
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "W",   # pycodestyle warnings
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+
+# MCP-specific rules (custom plugins)
+# These would be custom Ruff plugins, for now we use pre-commit hooks
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Allow direct HTTP in scripts/ (batch operations)
+"scripts/*" = ["S113"]  # requests-without-timeout
+"tests/*" = ["S101"]    # assert
+# Data-heavy prompt files have long string literals that are more readable unwrapped
+"src/prompts/shape_motion_database.py" = ["E501", "UP007"]
+"src/prompts/wildlife_behaviors.py" = ["E501"]
+"scripts/generate_video_gallery.py" = ["E501"]
+"scripts/test_mcp_integration.py" = ["E402", "E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.bandit]
+# Security scanning config
+exclude_dirs = ["tests"]
+skips = ["B101", "B601", "B310", "B404", "B603", "B607", "B110"]  # Skip: assert, shell, urllib, subprocess, partial path, try/except/pass

@@ -62,6 +62,18 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+      - id: plan-lint
+        name: plan semantic contract (hard fail)
+        entry: python3 scripts/plan_lint.py
+        language: system
+        pass_filenames: true
+        files: ^(docs/plans/.*\.md|templates/plan\.artifact\.template\.md)$
+      - id: claude-policy-lint
+        name: CLAUDE policy quality contract (hard fail)
+        entry: python3 scripts/claude_policy_lint.py --strict
+        language: system
+        pass_filenames: true
+        files: ^(CLAUDE\.md|templates/CLAUDE\.md\.template|templates/CLAUDE\.md\.template\.macos)$
 
   # Standard Python linting
   - repo: https://github.com/astral-sh/ruff-pre-commit
