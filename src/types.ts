@@ -237,6 +237,10 @@ export interface Hooks {
   config?: (input: Config) => Promise<void>;
   tool?: Record<string, any>;
   auth?: AuthHook;
+  "command.execute.before"?: (
+    input: { command: string; sessionID: string; arguments: string },
+    output: { parts: Part[] },
+  ) => Promise<void>;
   "chat.message"?: (
     input: {
       sessionID: string;

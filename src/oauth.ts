@@ -15,6 +15,13 @@ const DEFAULT_TIMEOUT = 600000; // 10 minutes
 // Storage path
 const AUTH_DIR = path.join(os.homedir(), '.opencode-kimi-auth');
 const TOKEN_FILE = path.join(AUTH_DIR, 'oauth.json');
+const KEY_FILE = path.join(AUTH_DIR, '.key');
+
+// Encryption constants
+const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+const KEY_LENGTH = 32;
+const IV_LENGTH = 16;
+const AUTH_TAG_LENGTH = 16;
 
 // Types
 export interface DeviceAuthorizationResponse {
@@ -37,6 +44,92 @@ export interface TokenResponse {
 interface StoredToken extends TokenResponse {
   expires_at: number; // Unix timestamp
   device_id: string;
+}
+
+interface EncryptedTokenWrapper {
+  encrypted: string;
+}
+
+function isEncryptedTokenWrapper(value: unknown): value is EncryptedTokenWrapper {
+  return Boolean(value) && typeof (value as EncryptedTokenWrapper).encrypted === 'string';
+}
+
+function isStoredToken(value: unknown): value is StoredToken {
+  if (!value || typeof value !== 'object') return false;
+  const token = value as StoredToken;
+  return (
+    typeof token.access_token === 'string' &&
+    typeof token.refresh_token === 'string' &&
+    typeof token.token_type === 'string' &&
+    typeof token.expires_at === 'number'
+  );
+}
+
+/**
+ * Get or generate encryption key
+ * The key is derived from machine-specific data combined with random bytes
+ */
+async function getEncryptionKey(): Promise<Buffer> {
+  try {
+    // Try to read existing key
+    const keyData = await fs.readFile(KEY_FILE);
+    return keyData;
+  } catch {
+    // Generate a new key using machine-specific data + random bytes
+    const machineData = `${os.hostname()}-${os.userInfo().username}-${os.platform()}`;
+    const randomBytes = crypto.randomBytes(KEY_LENGTH);
+    const hash = crypto.createHash('sha256');
+    hash.update(machineData);
+    hash.update(randomBytes);
+    const key = hash.digest();
+
+    // Store key with restricted permissions
+    await fs.mkdir(AUTH_DIR, { recursive: true });
+    await fs.writeFile(KEY_FILE, key, { mode: 0o600 });
+    return key;
+  }
+}
+
+/**
+ * Encrypt data using AES-256-GCM
+ */
+async function encrypt(data: string): Promise<string> {
+  const key = await getEncryptionKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
+
+  const encrypted = Buffer.concat([
+    cipher.update(data, 'utf8'),
+    cipher.final()
+  ]);
+  const authTag = cipher.getAuthTag();
+
+  // Combine IV + authTag + encrypted data
+  const result = Buffer.concat([iv, authTag, encrypted]);
+  return result.toString('base64');
+}
+
+/**
+ * Decrypt data using AES-256-GCM
+ */
+async function decrypt(encryptedData: string): Promise<string> {
+  const key = await getEncryptionKey();
+  const data = Buffer.from(encryptedData, 'base64');
+
+  // Extract IV, authTag, and encrypted content
+  const iv = data.subarray(0, IV_LENGTH);
+  const authTag = data.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
+  const encrypted = data.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+
+  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+
+  const decrypted = Buffer.concat([
+    decipher.update(encrypted),
+    decipher.final()
+  ]);
+
+  return decrypted.toString('utf8');
 }
 
 // Get or generate device ID
@@ -202,39 +295,71 @@ export async function refreshToken(refreshToken: string): Promise<TokenResponse>
   return tokenData;
 }
 
-// Store token
+// Store token (encrypted)
 export async function storeToken(token: TokenResponse): Promise<void> {
   const deviceId = await getDeviceId();
-  
+
   const storedToken: StoredToken = {
     ...token,
     expires_at: Date.now() + (token.expires_in * 1000),
     device_id: deviceId,
   };
-  
+
+  // Encrypt the token data
+  const encrypted = await encrypt(JSON.stringify(storedToken));
+
   await fs.mkdir(AUTH_DIR, { recursive: true });
   await fs.writeFile(
     TOKEN_FILE,
-    JSON.stringify(storedToken, null, 2),
+    JSON.stringify({ encrypted } as EncryptedTokenWrapper, null, 2),
     { mode: 0o600 }
   );
 }
 
-// Get token with auto-refresh
+// Get token with auto-refresh (decrypts stored token)
 export async function getToken(): Promise<TokenResponse | null> {
   try {
     const data = await fs.readFile(TOKEN_FILE, 'utf-8');
-    const storedToken: StoredToken = JSON.parse(data);
-    
+    const parsed = JSON.parse(data) as unknown;
+
+    let storedToken: StoredToken;
+    const isLegacyPlaintext = isStoredToken(parsed);
+
+    if (isEncryptedTokenWrapper(parsed)) {
+      // Decrypt the token data
+      const decrypted = await decrypt(parsed.encrypted);
+      const decryptedParsed = JSON.parse(decrypted) as unknown;
+      if (!isStoredToken(decryptedParsed)) {
+        return null;
+      }
+      storedToken = decryptedParsed;
+    } else if (isLegacyPlaintext) {
+      storedToken = parsed;
+    } else {
+      return null;
+    }
+
     // Check if token is expired or about to expire (within 5 minutes)
     const expiresSoon = storedToken.expires_at - Date.now() < 300000;
-    
+
     if (expiresSoon && storedToken.refresh_token) {
       // Refresh the token
       const newToken = await refreshToken(storedToken.refresh_token);
       return newToken;
     }
-    
+
+    // One-time migration path from legacy plaintext tokens to encrypted wrapper.
+    if (isLegacyPlaintext) {
+      const remainingSeconds = Math.max(1, Math.floor((storedToken.expires_at - Date.now()) / 1000));
+      await storeToken({
+        access_token: storedToken.access_token,
+        refresh_token: storedToken.refresh_token,
+        token_type: storedToken.token_type,
+        expires_in: remainingSeconds,
+        scope: storedToken.scope,
+      });
+    }
+
     // Return stored token (not expired yet)
     return {
       access_token: storedToken.access_token,

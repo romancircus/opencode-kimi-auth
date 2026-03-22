@@ -5,16 +5,17 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
-> OpenCode authentication plugin for Kimi (Moonshot AI) models
+> OpenCode authentication plugin for Kimi (Moonshot AI) models with Anthropic SDK format
 
-Enables OAuth Device Authorization flow for Kimi K2.5 and other Moonshot AI models in OpenCode CLI. This plugin handles secure token-based authentication with automatic refresh, so you never need to re-authenticate after the initial setup.
+Enables OAuth Device Authorization flow for Kimi K2.5 and other Moonshot AI models in OpenCode CLI. This plugin handles secure token-based authentication with automatic refresh, an AES-256-GCM encrypted local token cache, and usage tracking.
 
 ## Features
 
 - 🔐 **OAuth Device Authorization** - Secure device-based authentication with Kimi API
-- 🚀 **Drop-in OpenCode Plugin** - Add to your `opencode.json` and it just works
-- 🔄 **Auto-Token Refresh** - Automatic refresh every 15 minutes (access tokens) and 30 days (refresh tokens)
-- 🛡️ **Secure Token Storage** - Local secure storage in `~/.opencode-kimi-auth/oauth.json`
+- 🚀 **Anthropic SDK Compatible** - Uses `@ai-sdk/anthropic` format for seamless integration
+- 🔄 **Auto-Token Refresh** - Refreshes tokens near expiry with background polling
+- 🛡️ **Encrypted Local Token Cache** - AES-256-GCM encryption with a local key file
+- 📊 **Usage Tracking** - Built-in `/kimi-usage` command and automatic usage projections
 - ⚡ **Zero Config Setup** - Works out of the box with built-in OAuth credentials
 - 📦 **TypeScript Support** - Full type definitions included
 
@@ -28,39 +29,68 @@ npm install -g opencode-kimi-auth
 
 ### 2. Configure OpenCode
 
-Add the plugin to your OpenCode configuration (`~/.config/opencode/opencode.json` for global use, or `opencode.json` in your project):
+Add the plugin to your OpenCode configuration (`~/.config/opencode/opencode.json`):
 
 ```json
 {
-  "model": "kimi-k2.5",
+  "model": "kimi-for-coding",
+  "provider": {
+    "kimi-for-coding": {
+      "npm": "@ai-sdk/anthropic",
+      "name": "Kimi for Coding",
+      "options": {
+        "baseURL": "https://api.kimi.com/coding/v1",
+        "apiKey": "oauth-managed"
+      },
+      "models": {
+        "kimi-for-coding": {
+          "name": "Kimi For Coding"
+        }
+      }
+    }
+  },
   "plugin": ["opencode-kimi-auth"]
 }
-```
-
-Or use the provided example:
-
-```bash
-cp example-opencode.json ~/.config/opencode/opencode.json
 ```
 
 ### 3. Authenticate (First Time Only)
 
 ```bash
-opencode --model kimi-k2.5 "Hello from Kimi"
+opencode --model kimi-for-coding "Hello from Kimi"
 ```
 
 On first use:
 1. Your browser opens to Kimi's authorization page
 2. You'll see a device code (e.g., `ABCD-EFGH`) - enter it on the Kimi page
 3. Click "Authorize" on Kimi's website
-4. Tokens are stored locally - future uses are automatic
+4. Tokens are cached securely - future uses are automatic
 
 ### 4. That's It!
 
-After initial authentication, the plugin handles all token management automatically. You'll never need to re-authenticate unless:
-- You delete `~/.opencode-kimi-auth/oauth.json`
-- You want to switch Kimi accounts
-- The refresh token expires (after 30 days of inactivity)
+After initial authentication, the plugin handles all token management automatically.
+
+## Usage Commands
+
+### Check Usage
+
+Run the `/kimi-usage` command in any OpenCode session:
+
+```
+/kimi-usage
+```
+
+This displays:
+- Current plan level
+- 7-day usage bar and remaining quota
+- 5-hour usage bar and remaining quota
+- Reset times for both windows
+
+### Automatic Projections
+
+The plugin automatically displays usage projections in the companion panel when:
+- A new session is created
+- Session is updated
+- Session becomes idle
 
 ## How It Works
 
@@ -72,17 +102,33 @@ After initial authentication, the plugin handles all token management automatica
 3. User opens URL in browser and enters the code
 4. User approves authorization on Kimi's website
 5. Plugin polls for access token
-6. Tokens stored securely: access_token (15 min expiry, auto-refresh) + refresh_token (30 days)
+6. Tokens cached securely with AES-256-GCM encryption
 ```
+
+### Anthropic SDK Integration
+
+The plugin returns credentials in Anthropic SDK format:
+
+```typescript
+{
+  apiKey: string;           // Access token
+  headers: {
+    Authorization: string;  // Bearer token header
+  };
+  fetch: (input, init) => Promise<Response>; // Custom fetch with token refresh
+}
+```
+
+This allows OpenCode to use the standard `@ai-sdk/anthropic` provider with Kimi's API.
 
 ### Token Lifecycle
 
 | Token Type | Lifetime | Behavior |
 |------------|----------|----------|
-| **Access Token** | 15 minutes | Used for API calls, auto-refreshed using refresh token |
-| **Refresh Token** | 30 days | Used to obtain new access tokens silently |
+| **Access Token** | ~15 minutes | Used for API calls, refreshed when nearing expiry |
+| **Refresh Token** | ~30 days | Used to obtain new access tokens silently |
 
-**After initial authentication, you never need to re-authenticate.** The plugin handles all token management automatically in the background.
+**After initial authentication, you typically won't need to re-authenticate.** If a refresh token expires or is revoked, delete the token file and authenticate again.
 
 ## Configuration
 
@@ -92,29 +138,25 @@ Edit `~/.config/opencode/opencode.json`:
 
 ```json
 {
-  "model": "kimi-k2.5",
+  "model": "kimi-for-coding",
   "provider": {
-    "kimi": {
-      "api": {
-        "url": "https://api.moonshot.cn/v1"
+    "kimi-for-coding": {
+      "npm": "@ai-sdk/anthropic",
+      "name": "Kimi for Coding",
+      "options": {
+        "baseURL": "https://api.kimi.com/coding/v1",
+        "apiKey": "oauth-managed"
+      },
+      "models": {
+        "kimi-for-coding": {
+          "name": "Kimi For Coding"
+        },
+        "k2p5": {
+          "name": "Kimi K2.5 (alias)"
+        }
       }
     }
   },
-  "plugin": ["opencode-kimi-auth"],
-  "auth": {
-    "kimi": {
-      "type": "oauth"
-    }
-  }
-}
-```
-
-### Project-Level Configuration
-
-Create `opencode.json` in your project root:
-
-```json
-{
   "plugin": ["opencode-kimi-auth"]
 }
 ```
@@ -125,12 +167,14 @@ If you prefer using a direct API key instead of OAuth:
 
 ```json
 {
-  "model": "kimi-k2.5",
+  "model": "kimi-for-coding",
   "provider": {
-    "kimi": {
-      "api": {
-        "url": "https://api.moonshot.cn/v1",
-        "key": "your-kimi-api-key"
+    "kimi-for-coding": {
+      "npm": "@ai-sdk/anthropic",
+      "name": "Kimi for Coding",
+      "options": {
+        "baseURL": "https://api.kimi.com/coding/v1",
+        "apiKey": "your-kimi-api-key"
       }
     }
   }
@@ -139,18 +183,23 @@ If you prefer using a direct API key instead of OAuth:
 
 ## Token Storage Location
 
-Tokens are stored at:
+The plugin's local token cache is stored at:
 ```
 ~/.opencode-kimi-auth/oauth.json
 ```
 
-This file contains:
-- `access_token` - Short-lived API token (15 min)
-- `refresh_token` - Long-lived token for refreshing (30 days)
-- `expires_at` - Timestamp for auto-refresh calculation
-- `device_id` - Unique device identifier
+This file contains encrypted token data using AES-256-GCM encryption.
 
-**Security note:** The token file is created with `0o600` permissions (readable only by owner).
+OpenCode may also keep provider credentials in its own auth store as part of normal `/auth` behavior. That store is managed by OpenCode, while this plugin's local cache remains encrypted at rest.
+
+### Encryption Details
+
+- **Algorithm**: AES-256-GCM with authentication tags
+- **Key Generation**: SHA-256 over machine metadata plus 32 random bytes (stored locally)
+- **Key Storage**: `~/.opencode-kimi-auth/.key` with `0o600` permissions
+- **Token File**: `~/.opencode-kimi-auth/oauth.json` with `0o600` permissions
+
+The key file and encrypted token file are both stored locally with restricted permissions. Keep both files private.
 
 ## Troubleshooting
 
@@ -171,16 +220,24 @@ This file contains:
 **Cause:** Refresh token expired or was revoked
 
 **Solution:** Delete the token file and re-authenticate:
+
 ```bash
 rm ~/.opencode-kimi-auth/oauth.json
 # Then use the plugin again - it will prompt for fresh authentication
 ```
+
+### "No Kimi OAuth credentials found"
+
+**Cause:** Not authenticated yet
+
+**Solution:** Run `/auth` in OpenCode and select "Kimi Code Subscription" to authenticate.
 
 ### Plugin not loading
 
 **Cause:** OpenCode can't find the plugin
 
 **Solution:**
+
 1. Verify the plugin is installed: `npm list -g opencode-kimi-auth`
 2. Check your `opencode.json` syntax is valid JSON
 3. Try specifying the full path: `"plugin": ["/path/to/opencode-kimi-auth"]`
@@ -191,7 +248,7 @@ Enable debug logging:
 
 ```bash
 export DEBUG=opencode-kimi-auth:*
-opencode --model kimi-k2.5 "test"
+opencode --model kimi-for-coding "test"
 ```
 
 ## Advanced Usage
@@ -202,27 +259,17 @@ If you have your own Kimi OAuth app, override the client ID:
 
 ```bash
 export KIMI_CLIENT_ID="your-custom-client-id"
-opencode --model kimi-k2.5 "Hello"
+opencode --model kimi-for-coding "Hello"
 ```
 
 ### Programmatic Usage
 
 ```typescript
-import { KimiOAuthClient } from 'opencode-kimi-auth';
+import { KimiAuthPlugin } from 'opencode-kimi-auth';
 
-// Initialize OAuth client
-const client = new KimiOAuthClient({
-  clientId: 'your-client-id',      // Optional - uses built-in default
-  scopes: ['kimi-code']            // Optional - default scope
-});
-
-// Start device authorization flow
-const result = await client.authorize();
-console.log('Visit:', result.verificationUri);
-console.log('Enter code:', result.userCode);
-
-// Tokens are automatically stored and refreshed
-const accessToken = await client.getValidAccessToken();
+// The plugin is designed to be loaded by OpenCode CLI
+// It exports a standard OpenCode plugin interface
+export default KimiAuthPlugin;
 ```
 
 ## Development
@@ -248,14 +295,17 @@ npm run typecheck
 
 ```
 src/
-├── index.ts          # Main entry point, OpenCode plugin interface
-├── oauth.ts          # OAuth Device Authorization implementation
+├── index.ts          # Main plugin with Anthropic SDK integration
+├── oauth.ts          # OAuth Device Authorization + encryption
 └── types.ts          # TypeScript type definitions
 ```
 
 Key components:
+
 - **Device Authorization Flow** - Implements RFC 8628 OAuth Device Authorization Grant
-- **Token Management** - Automatic refresh, secure storage, lifecycle management
+- **Token Management** - Automatic refresh, encrypted local cache, lifecycle management
+- **Anthropic SDK Integration** - Returns credentials in `@ai-sdk/anthropic` format
+- **Usage Tracking** - Fetches and displays quota usage from Kimi API
 - **OpenCode Integration** - Plugin interface for OpenCode CLI auth system
 
 ## Contributing
@@ -270,7 +320,8 @@ Contributions welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for
 
 ## Security
 
-- Tokens are stored locally with `0o600` file permissions
+- Plugin-managed local tokens are encrypted at rest using AES-256-GCM
+- Encryption keys are local files stored with `0o600` permissions
 - No secrets are logged or transmitted to third parties
 - OAuth Device Authorization is the most secure flow for CLI applications
 - All communication is over HTTPS
@@ -279,9 +330,7 @@ Report security vulnerabilities to [security@romancircus.com](mailto:security@ro
 
 ## License
 
-Apache-2.0 © Roman Circus Studio
-
-See [LICENSE](LICENSE) for full details.
+Apache-2.0 © [Roman Circus](https://github.com/romancircus)
 
 ---
 
