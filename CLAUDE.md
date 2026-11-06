@@ -28,7 +28,7 @@ Conflict resolution:
 
 - Use nested `AGENTS.md` only when a subtree has materially different local commands or constraints.
 - Keep scoped files focused on path-local behavior.
-- Do not repeat the root Plan/Linear workflow contract in scoped files.
+- Do not repeat the root plan workflow contract in scoped files.
 - Optional Claude-only additions may live under `.claude/rules/`.
 
 ## Security Guardrails
@@ -39,35 +39,11 @@ Conflict resolution:
 - Require explicit confirmation before destructive or high-cost operations.
 - Use least-privilege tools and narrow scopes.
 
-## Mandatory Plan-to-Linear Protocol
-
-For non-trivial work:
-
-1. Create/update `docs/plans/<slug>-<YYYY-MM-DD>.md`.
-2. Break implementation into executable steps.
-3. Default issue strategy: one Linear issue per executable step.
-4. Add plan path in each Linear issue description.
-5. Keep plan + Linear synchronized (status, comments, evidence).
-6. Do not ask users to perform manual Linear updates.
-
-Overnight exception:
-- Exception mode: `Execution Mode: overnight-single-issue`.
-- Allowed only for strictly sequential overnight orchestration.
-- Do not use `blockedBy` as execution control.
-
-Linear outage fallback:
-
-```bash
-python3 scripts/linear_outbox_append.py --issue ROM-123 --op create_comment --payload '{"body":"status update"}'
-python3 scripts/linear_flush_outbox.py --backend auto
-```
-
 ## Policy Modules
 
 Load and apply:
 - `@policy/claude/00-precedence.md`
 - `@policy/claude/10-workflow.md`
-- `@policy/claude/20-overnight-exception.md`
 - `@policy/claude/30-security-guardrails.md`
 - `@policy/claude/40-operations.md`
 
@@ -87,7 +63,7 @@ npm run build
 npm run typecheck
 python3 scripts/plan_lint.py --all --require-files
 python3 scripts/claude_policy_lint.py --strict
-python3 scripts/validate_repo_compliance.py . --require-plan-linear --require-plan-semantics --require-claude-quality
+python3 scripts/validate_repo_compliance.py . --require-plan --require-plan-semantics --require-claude-quality
 ```
 
 ## Hard-Won Lessons
@@ -97,3 +73,9 @@ python3 scripts/validate_repo_compliance.py . --require-plan-linear --require-pl
 - Prefer plugin-local changes over forking OpenCode behavior unless the integration contract requires it.
 
 *Last updated: 2026-03-15*
+
+## Planning Communication
+
+- In planning mode, explain the plan in business English first.
+- Lead with outcome, user impact, risk, and proof of success before implementation detail.
+- Keep file, module, API, and tool detail in a short secondary technical note unless the user explicitly asks for deep technical detail.

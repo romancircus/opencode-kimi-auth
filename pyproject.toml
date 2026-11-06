@@ -1,4 +1,5 @@
 [tool.ruff]
+extend-exclude = ["scripts/plan_lint.py", "scripts/claude_policy_lint.py", "scripts/validate_repo_compliance.py"]  # vendored from agent-infrastructure
 # MCP Big Bang Migration - Ruff Configuration
 # Custom rules to enforce MCP architecture standards
 

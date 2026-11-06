@@ -1,0 +1,175 @@
+{
+  "_comment": [
+    "Single source of truth for the plan artifact contract.",
+    "scripts/plan_lint.py READS this file directly (no generated Python to drift), and",
+    "scripts/gen_plan_contract.py renders the prose section of policy/WORKFLOW_PROTOCOL.md",
+    "from it. Before this file existed there were three disagreeing contracts: the prose",
+    "in WORKFLOW_PROTOCOL.md, templates/plan.artifact.template.md, and plan_lint.py.",
+    "The linter demanded two headings the prose never mentioned (Risks and Rollback,",
+    "Handoff Snapshot) and rejected the Unicode box-drawing every agent actually writes,",
+    "so compliant-looking plans failed and nobody noticed because the lint was absent",
+    "from the three repos holding ~50% of all plans. See ROM-4491."
+  ],
+  "contract_version": 2,
+  "_v2_note": "Contract v2 (2026-11-05): Linear is retired fleet-wide (operator decision). Plans declaring 'Plan-Contract-Version: 2' use step_columns, which has no tracker column; a 'Linear Issue' column is rejected via retired_columns. Plans declaring version 1, or no version, are grandfathered under v1_legacy and lint exactly as before.",
+  "required_headings": [
+    {
+      "name": "Context and Objective",
+      "aliases": [],
+      "since_version": 0
+    },
+    {
+      "name": "Success Criteria",
+      "aliases": [],
+      "since_version": 0
+    },
+    {
+      "name": "ASCII Diagram",
+      "aliases": [
+        "Diagram",
+        "Architecture",
+        "Flow",
+        "Architecture Diagram"
+      ],
+      "since_version": 0
+    },
+    {
+      "name": "Business Logic Specification",
+      "aliases": [
+        "Business Logic"
+      ],
+      "since_version": 0
+    },
+    {
+      "name": "Technical Implementation Plan",
+      "aliases": [
+        "Technical Plan",
+        "Implementation Plan"
+      ],
+      "since_version": 0
+    },
+    {
+      "name": "Executable Steps",
+      "aliases": [
+        "Executable Step Table",
+        "Steps"
+      ],
+      "since_version": 0
+    },
+    {
+      "name": "Risks and Rollback",
+      "aliases": [
+        "Risks",
+        "Rollback",
+        "Risks & Rollback"
+      ],
+      "since_version": 1
+    },
+    {
+      "name": "Handoff Snapshot",
+      "aliases": [
+        "Handoff"
+      ],
+      "since_version": 1
+    }
+  ],
+  "heading_levels": [
+    2,
+    3
+  ],
+  "step_columns": [
+    "Step ID",
+    "Description",
+    "Business Outcome",
+    "Technical Deliverable",
+    "State",
+    "Evidence",
+    "Last Updated"
+  ],
+  "retired_columns": [
+    {
+      "name": "Linear Issue",
+      "since_version": 2,
+      "message": "Linear retired 2026-11-05 (contract v2): drop the Linear Issue column"
+    }
+  ],
+  "allowed_states": [
+    "Planned",
+    "In Progress",
+    "Completed",
+    "Blocked",
+    "Todo",
+    "Done",
+    "In Review"
+  ],
+  "diagram": {
+    "fence_languages": [
+      "",
+      "text",
+      "ascii",
+      "diagram",
+      "txt"
+    ],
+    "allow_box_drawing": true,
+    "_allow_box_drawing_note": "Agents write box-drawing unanimously. The old pure-ASCII rule rejected every real plan for no benefit; the requirement is a readable diagram, not code page 7.",
+    "max_line_length": 140,
+    "require_diagram_characters": true
+  },
+  "sections": {
+    "Business Logic Specification": {
+      "min_words": 30,
+      "min_bullets": 2,
+      "require_substring": "acceptance",
+      "require_substring_since_version": 1
+    },
+    "Technical Implementation Plan": {
+      "min_words": 35,
+      "require_path_reference": true,
+      "require_pattern": "(test|verify|validation|lint|build)"
+    },
+    "Handoff Snapshot": {
+      "require_substring": "next command",
+      "require_bash_block": true
+    }
+  },
+  "filename_pattern": "^[a-z0-9][a-z0-9-]*-\\d{4}-\\d{2}-\\d{2}\\.md$",
+  "validate_real_dates": true,
+  "evidence_must_reference_a_path": false,
+  "lint_untracked_plans": true,
+  "evidence_placeholder_values": [
+    "tbd",
+    "pending",
+    "n/a",
+    "na",
+    "none",
+    "-",
+    "--",
+    "?",
+    "todo"
+  ],
+  "_evidence_note": "Evidence does NOT have to be a path. Command output, a regression observation or a validator verdict are all legitimate evidence, and requiring a path rejected 100+ real historical entries. What is rejected is a placeholder that asserts nothing.",
+  "_versioning_note": "Rules added in a contract version apply only to plans that declare 'Plan-Contract-Version: N'. Plans without the marker are linted under the legacy ruleset. This is deliberate: grandfathering on a mutable 'Status: Completed' line let a plan escape the contract by editing one word.",
+  "allowed_states_case_insensitive": true,
+  "_gating_note": "since_version 0 = always required (the original prose contract). since_version 1 = added with the versioned contract and required only of plans declaring 'Plan-Contract-Version: 1'. Without this split, turning the lint on in the repos that hold ~50% of all plans produced 2,425 findings against plans written correctly against the prose they were given, and would have blocked every commit in those repos.",
+  "v1_legacy": {
+    "_note": "Grandfathered rules for plans declaring Plan-Contract-Version: 1 or no version. These plans were written while Linear was the program board; they keep the tracker column and its ROM-123 id check so historical plans lint exactly as before. Nothing here applies to v2 plans.",
+    "step_columns": [
+      "Step ID",
+      "Description",
+      "Business Outcome",
+      "Technical Deliverable",
+      "Linear Issue",
+      "State",
+      "Evidence",
+      "Last Updated"
+    ],
+    "issue_column": "Linear Issue",
+    "issue_id_pattern": "[A-Z]+-\\d+",
+    "allow_issue_reuse_across_rows": true,
+    "issue_reuse_allowed_modes": [
+      "phased-program",
+      "overnight-single-issue"
+    ],
+    "_issue_reuse_note": "Default is one Linear issue per program (Execution Mode: phased-program). The executable-step table may repeat that issue id on every row. Per-step issues are optional when a human needs a separate board row. overnight-single-issue remains the sequential overnight jinyang/Cyrus dispatch case."
+  }
+}

@@ -6,14 +6,14 @@ Write policy in terms of required outcomes first, then provide tool-specific ada
 
 ## Adapter Style
 
-- Prefer: "update issue status in Linear and add evidence comment."
+- Prefer: "record the step state and evidence path in the plan's step table."
 - Avoid: hard-coding a single tool API as the only valid implementation path.
 
 Example adapter table:
 
 | Outcome | Claude/Codex/OpenCode Adapter |
 |---|---|
-| Update Linear state | Use workspace Linear integration to set state + comment with evidence |
+| Record step state | Edit the plan's step table and commit it with the evidence path |
 | Validate plan contract | `python3 scripts/plan_lint.py --all --require-files` |
 | Validate policy quality | `python3 scripts/claude_policy_lint.py --strict` |
 

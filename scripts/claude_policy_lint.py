@@ -9,13 +9,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-
 REQUIRED_HEADINGS = [
     "Cross-Agent Compliance",
     "Project Goal",
+    "Planning Communication",
     "Instruction Precedence",
     "Security Guardrails",
-    "Mandatory Plan-to-Linear Protocol",
     "Policy Modules",
     "Development Workflow",
 ]
@@ -37,14 +36,57 @@ PLACEHOLDER_PATTERNS = [
 ]
 
 ROOT_LINE_LIMIT = 220
-SCOPED_LINE_LIMIT = 100
-DEFAULT_ISSUE_PATTERN = re.compile(
-    r"(one\s+Linear\s+issue\s+per\s+executable\s+step)", flags=re.IGNORECASE
+# Kept in step with surfaces.scoped_agents.hard_cap in policy/instruction-topology.json.
+# Raised 100 -> 120 on 2026-08-09: a scoped AGENTS.md must embed the 20-line
+# DELIVERABLE_REVIEW_HANDOFF block verbatim (validate_machine_agent_stack.py asserts those
+# markers), so the old limit conflicted with a hard validator requirement and could only have
+# been satisfied by deleting operational content.
+SCOPED_LINE_LIMIT = 120
+# The plan protocol lives in the machine root policy (WORKFLOW_PROTOCOL.md). A repo or
+# scoped file must not carry its own copy. The Plan-Linear names were retired with
+# Linear on 2026-11-05; a repo file that still carries them is a regression.
+RETIRED_PROTOCOL_HEADINGS = (
+    "Mandatory Plan-to-Linear Protocol",
+    "MANDATORY PLAN-LINEAR EXECUTION PROTOCOL",
 )
-SINGLE_ISSUE_PATTERN = re.compile(r"(single[- ]issue)", flags=re.IGNORECASE)
-EXCEPTION_MARKER = "Execution Mode: overnight-single-issue"
+ROOT_PROTOCOL_HEADINGS = RETIRED_PROTOCOL_HEADINGS + ("MANDATORY PLAN EXECUTION PROTOCOL",)
 IMPORT_PATTERN = re.compile(r"@([A-Za-z0-9_./-]+\.md)")
 POLICY_VERSION_PATTERN = re.compile(r"^POLICY_VERSION:\s+\d{4}-\d{2}-\d{2}$", re.MULTILINE)
+RUNTIME_REQUIRED_SECTIONS = {
+    "Communication Standard": (
+        "<!-- COMMUNICATION_STANDARD_START -->",
+        "<!-- COMMUNICATION_STANDARD_END -->",
+    ),
+    "Decision Support Standard": (
+        "<!-- DECISION_SUPPORT_STANDARD_START -->",
+        "<!-- DECISION_SUPPORT_STANDARD_END -->",
+    ),
+    "Execution Standard": (
+        "<!-- EXECUTION_STANDARD_START -->",
+        "<!-- EXECUTION_STANDARD_END -->",
+    ),
+    "Verification Standard": (
+        "<!-- VERIFICATION_STANDARD_START -->",
+        "<!-- VERIFICATION_STANDARD_END -->",
+    ),
+}
+RUNTIME_REQUIRED_PHRASES = {
+    "Decision Support Standard": [
+        "cost, speed, risk, revenue, scalability, operations, customer impact, and competitive advantage",
+        "rollback path",
+    ],
+    "Execution Standard": [
+        "State decision-critical assumptions",
+        "Surface material ambiguity and tradeoffs",
+        "smallest working solution",
+        "Every changed line should trace directly to the user request",
+    ],
+    "Verification Standard": [
+        "explicit success criteria",
+        "Pair each implementation step with a verification check",
+        "what changed, why it changed, how it was verified, and what remains unresolved",
+    ],
+}
 
 
 @dataclass
@@ -114,6 +156,39 @@ def _is_scoped_policy(path: Path, repo_root: Path) -> bool:
     return False
 
 
+def _runtime_policy_errors(repo_root: Path) -> list[str]:
+    runtime_dir = repo_root / "policy" / "runtime"
+    if not runtime_dir.exists():
+        return []
+
+    module_text = "\n".join(
+        path.read_text(encoding="utf-8", errors="replace")
+        for path in sorted(runtime_dir.glob("*.md"))
+    )
+    errors: list[str] = []
+
+    for heading, (start_marker, end_marker) in RUNTIME_REQUIRED_SECTIONS.items():
+        start_count = module_text.count(start_marker)
+        end_count = module_text.count(end_marker)
+        heading_count = len(
+            re.findall(rf"^##\s+{re.escape(heading)}\s*$", module_text, re.MULTILINE)
+        )
+
+        if start_count != 1:
+            errors.append(f"{heading} start marker must appear exactly once ({start_count} found)")
+        if end_count != 1:
+            errors.append(f"{heading} end marker must appear exactly once ({end_count} found)")
+        if heading_count != 1:
+            errors.append(f"## {heading} must appear exactly once ({heading_count} found)")
+
+    for section, phrases in RUNTIME_REQUIRED_PHRASES.items():
+        for phrase in phrases:
+            if phrase not in module_text:
+                errors.append(f"{section} missing required phrase: {phrase}")
+
+    return errors
+
+
 def _lint_file(path: Path, repo_root: Path, strict: bool) -> LintResult:
     errors: list[str] = []
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -133,21 +208,12 @@ def _lint_file(path: Path, repo_root: Path, strict: bool) -> LintResult:
         if not POLICY_VERSION_PATTERN.search(text):
             errors.append("missing or invalid POLICY_VERSION date (expected YYYY-MM-DD)")
 
-        protocol_section = _extract_h2_section(text, "Mandatory Plan-to-Linear Protocol")
-        if protocol_section is not None:
-            has_default = bool(DEFAULT_ISSUE_PATTERN.search(protocol_section))
-            has_single = bool(SINGLE_ISSUE_PATTERN.search(protocol_section))
-            has_exception = EXCEPTION_MARKER in protocol_section
-
-            if not has_default:
+        for heading in RETIRED_PROTOCOL_HEADINGS:
+            if _extract_h2_section(text, heading) is not None:
                 errors.append(
-                    "missing default issue strategy in Mandatory Plan-to-Linear Protocol: "
-                    "one Linear issue per executable step"
-                )
-            if has_single and not has_exception:
-                errors.append(
-                    "single-issue mode referenced without explicit exception marker: "
-                    "Execution Mode: overnight-single-issue"
+                    f"retired section '## {heading}' present (Linear retired 2026-11-05); "
+                    "the plan protocol lives in the machine root policy. Remove it with "
+                    "scripts/remove_retired_linear_block.py"
                 )
 
         imports = sorted(set(IMPORT_PATTERN.findall(text)))
@@ -161,12 +227,9 @@ def _lint_file(path: Path, repo_root: Path, strict: bool) -> LintResult:
     if (
         scoped_mode
         and strict
-        and (
-            "## Mandatory Plan-to-Linear Protocol" in text
-            or "## MANDATORY PLAN-LINEAR EXECUTION PROTOCOL" in text
-        )
+        and any(f"## {heading}" in text for heading in ROOT_PROTOCOL_HEADINGS)
     ):
-        errors.append("scoped AGENTS.md must not redefine the root plan/Linear protocol")
+        errors.append("scoped AGENTS.md must not redefine the root plan protocol")
 
     if not template_mode:
         for pattern in PLACEHOLDER_PATTERNS:
@@ -176,15 +239,11 @@ def _lint_file(path: Path, repo_root: Path, strict: bool) -> LintResult:
         if path.name == "CLAUDE.md" and strict and not scoped_mode:
             line_count = len(text.splitlines())
             if line_count > ROOT_LINE_LIMIT:
-                errors.append(
-                    f"root CLAUDE.md exceeds {ROOT_LINE_LIMIT} lines ({line_count})"
-                )
+                errors.append(f"root CLAUDE.md exceeds {ROOT_LINE_LIMIT} lines ({line_count})")
         if scoped_mode and strict:
             line_count = len(text.splitlines())
             if line_count > SCOPED_LINE_LIMIT:
-                errors.append(
-                    f"scoped AGENTS.md exceeds {SCOPED_LINE_LIMIT} lines ({line_count})"
-                )
+                errors.append(f"scoped AGENTS.md exceeds {SCOPED_LINE_LIMIT} lines ({line_count})")
 
     return LintResult(path=path, errors=errors)
 
@@ -218,6 +277,14 @@ def main() -> int:
             )
             print(f"{rel}:")
             for err in result.errors:
+                print(f"  - {err}")
+
+    if args.strict:
+        runtime_errors = _runtime_policy_errors(repo_root)
+        if runtime_errors:
+            has_error = True
+            print("policy/runtime:")
+            for err in runtime_errors:
                 print(f"  - {err}")
 
     return 1 if has_error else 0

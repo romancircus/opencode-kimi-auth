@@ -39,29 +39,8 @@ repos:
         stages: [commit-msg]
 
       # Rule 5: Enforce Linear task exists before committing
-      - id: enforce-linear-task
-        name: Enforce Linear task creation
-        entry: python scripts/precommit_linear_hooks.py enforce-task-exists
-        language: python
-        always_run: true
-        pass_filenames: false
-        stages: [pre-commit]
-
       # Rule 6: Check Linear reference in commit message
-      - id: check-linear-ref
-        name: Check Linear reference in commit
-        entry: python scripts/precommit_linear_hooks.py check-commit-msg
-        language: python
-        stages: [commit-msg]
-
       # Rule 7: Verify AGENTS.md -> CLAUDE.md symlink
-      - id: check-agents-symlink
-        name: Verify AGENTS.md symlink
-        entry: python scripts/precommit_linear_hooks.py check-agents-symlink
-        language: python
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
       - id: plan-lint
         name: plan semantic contract (hard fail)
         entry: python3 scripts/plan_lint.py
@@ -100,4 +79,5 @@ repos:
     hooks:
       - id: bandit
         args: ["-c", "pyproject.toml"]
+        exclude: ^scripts/(plan_lint|claude_policy_lint|validate_repo_compliance)\.py$
         additional_dependencies: ["bandit[toml]"]
