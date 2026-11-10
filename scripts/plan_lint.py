@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+
 # The contract lives in policy/plan-contract.json and is READ here rather than
 # duplicated. Three disagreeing contracts (this file, the prose in
 # WORKFLOW_PROTOCOL.md, and the template) is what made agents look
@@ -76,7 +77,9 @@ PLAN_FILENAME_PATTERN = re.compile(CONTRACT["filename_pattern"])
 LINEAR_ISSUE_PATTERN = re.compile(V1_LEGACY.get("issue_id_pattern", r"[A-Z]+-\d+"))
 DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
 
-_FENCES = "|".join(re.escape(lang) for lang in CONTRACT["diagram"]["fence_languages"] if lang)
+_FENCES = "|".join(
+    re.escape(lang) for lang in CONTRACT["diagram"]["fence_languages"] if lang
+)
 ASCII_BLOCK_PATTERN = re.compile(r"```(?:" + _FENCES + r")?\n([\s\S]*?)\n```")
 BASH_BLOCK_PATTERN = re.compile(r"```bash\n[\s\S]*?\n```")
 
@@ -109,27 +112,30 @@ def _is_ignored_plan_path(repo_root: Path, path: Path) -> bool:
 
 
 def _split_sections(content: str) -> dict[str, str]:
-    sections: dict[str, str] = {}
-    current_heading: str | None = None
-    buffer: list[str] = []
-
     # Accept the heading levels the contract allows. Matching only `## ` meant a
     # perfectly good `### ASCII Diagram` counted as a missing heading.
     levels = "|".join("#" * lvl for lvl in sorted(HEADING_LEVELS))
-    heading_re = re.compile(r"^(?:" + levels + r")\s+(.+?)\s*$")
-    for line in content.splitlines():
+    heading_re = re.compile(r"^(" + levels + r")\s+(.+?)\s*$")
+    lines = content.splitlines()
+    headings: list[tuple[int, int, str]] = []
+    for index, line in enumerate(lines):
         match = heading_re.match(line)
         if match:
-            if current_heading is not None:
-                sections[current_heading] = "\n".join(buffer).strip()
-            current_heading = match.group(1).strip()
-            buffer = []
-            continue
-        if current_heading is not None:
-            buffer.append(line)
+            headings.append((index, len(match.group(1)), match.group(2).strip()))
 
-    if current_heading is not None:
-        sections[current_heading] = "\n".join(buffer).strip()
+    # A section runs to the next heading of the same or a higher level, so a
+    # `## Technical Implementation Plan` keeps its `###` sub-sections. Ending it at
+    # ANY accepted heading left a 60-line section empty whenever its body opened
+    # with a `###`. Every heading is still its own key, so a required heading
+    # resolves at either level; a repeated key keeps the last body, as before.
+    sections: dict[str, str] = {}
+    for position, (start, level, title) in enumerate(headings):
+        end = len(lines)
+        for next_start, next_level, _title in headings[position + 1 :]:
+            if next_level <= level:
+                end = next_start
+                break
+        sections[title] = "\n".join(lines[start + 1 : end]).strip()
     return sections
 
 
@@ -327,10 +333,8 @@ def _lint_file(path: Path) -> LintResult:
         if ascii_section is not None:
             blocks = ASCII_BLOCK_PATTERN.findall(ascii_section)
             if not blocks:
-                errors.append(
-                    "Diagram section must contain a fenced code block "
-                    f"({', '.join(repr(f) for f in CONTRACT['diagram']['fence_languages'])})"
-                )
+                errors.append("Diagram section must contain a fenced code block "
+                               f"({', '.join(repr(f) for f in CONTRACT['diagram']['fence_languages'])})")
             else:
                 ascii_block = blocks[0]
                 if not ascii_block.strip():
@@ -421,7 +425,7 @@ def _lint_file(path: Path) -> LintResult:
                 if len(row) != len(expected_columns):
                     errors.append("Executable Steps table row has incorrect column count")
                     continue
-                row_map = dict(zip(expected_columns, row, strict=False))
+                row_map = dict(zip(expected_columns, row))
                 for key, value in row_map.items():
                     if not value:
                         errors.append(f"Executable Steps row has empty '{key}' field")
@@ -469,9 +473,7 @@ def _lint_file(path: Path) -> LintResult:
                 # legitimate evidence and must not be forced into a path shape.
                 evidence = row_map["Evidence"].strip("` ").strip()
                 placeholders = CONTRACT.get("evidence_placeholder_values", [])
-                if (declares_version or STRICT_LEGACY) and evidence.lower().rstrip(
-                    "."
-                ) in placeholders:
+                if (declares_version or STRICT_LEGACY) and evidence.lower().rstrip(".") in placeholders:
                     errors.append(
                         f"Executable Steps row Evidence is a placeholder ('{evidence}'); "
                         "record what was actually observed, run or produced"
@@ -553,11 +555,7 @@ def main() -> int:
         result = _lint_file(candidate)
         if result.errors:
             has_error = True
-            rel = (
-                candidate.relative_to(repo_root)
-                if candidate.is_relative_to(repo_root)
-                else candidate
-            )
+            rel = candidate.relative_to(repo_root) if candidate.is_relative_to(repo_root) else candidate
             print(f"{rel}:")
             for issue in result.errors:
                 print(f"  - {issue}")
